@@ -1,1 +1,80 @@
+edition: 3.0.0 # 命令行YAML规范版本，遵循语义化版本（Semantic Versioning）规范
+name: boltnew # 项目名称
+access: default # 秘钥别名
 
+vars: # [全局变量，提供给各个业务模块使用]
+  logo: https://img.alicdn.com/imgextra/i2/O1CN01Qta2HJ20Hu4u7BbWM_!!6000000006825-2-tps-1024-1024.png
+
+actions: # 自定义全局的执行逻辑
+  pre-deploy: # 项目deploy执行之前执行
+    - run: npm install # 要运行的命令行
+      path: ./ # 命令行运行的路径
+  # success-deploy: # 项目deploy执行成功之后执行
+  #   - plugin: dingding-robot # 要使用的插件
+  #     allow_failure: true # true/false 允许失败条件
+  #     args: # 插件的参数
+  #       key: value 
+  # fail-deploy: # 项目deploy执行失败之后执行
+    # - plugin: dingding-robot # 要使用的插件
+    #   allow_failure: # 允许失败条件
+    #     command: # 允许失败的执行command
+    #       - deploy
+    #     exit_code: # 允许失败的退出码
+    #       - 100
+    #       - 101
+    #   args: # 插件的参数
+    #     key: value 
+  # complete-deploy: # 项目deploy执行完成之后执行
+  #   - plugin: dingding-robot # 要使用的插件
+  #     args: # 插件的参数
+  #       key: value 
+
+resources:
+  nextjs_portal: #  项目名称
+    component: fc3  # 组件名称
+    actions: # 自定义执行逻辑
+      pre-deploy: # 在deploy之前运行
+        - run: npm install  # 要运行的命令行
+          path: ./nextjs_portal # 命令行运行的路径
+      success-deploy: # 在deploy之后运行
+        - component: fc3 invoke  # 要运行的组件，格式为【component: 组件名 命令 参数】
+          allow_failure: true # true/false 允许失败条件
+    props: #  组件的属性值
+      region: ${vars.region}
+      functionName: nextjs_portal
+      runtime: nodejs20
+      code: ./nextjs_portal
+      handler: index.handler
+      memorySize: 128
+      timeout: 30
+
+  assets:
+    component: static
+    props:
+      cache-control: "public, max-age=604800, immutable"
+      www: "./public"
+
+  express_blog:
+    component: express
+    props:
+      app: ./express-blog
+      url: ${vars.domain}
+    actions:
+      pre-deploy:
+        - run: npm run build
+          path: ./express-blog
+
+  gateway:
+    component: serverless-gateway # 路由组件：HTTP URL和服务之间的映射规则
+    props:
+      routes:
+        - route: /~assets
+          value: ${resources.assets.output.url}
+        - route: /
+          value: ${resources.nextjs_portal.output.url}
+          index: index.html
+        - route: /~portal
+          value: ${resources.nextjs_portal.output.url}
+          inex: index.html
+        - route: /~blog
+          value: ${resources.express_blog.output.url}
